@@ -2,14 +2,26 @@ from __future__ import annotations
 from typing import Callable,Tuple,List,cast,Union
 import copy
 import math
+from dual_numbers import Dual
 
 from typing_extensions import Protocol
 
-class FloatFunction(Protocol):
-    def __call__(self, *vals: float) -> float: ...
+class Function(Protocol):
+    def __call__(self, *vals: Dual) -> Dual: ...
     
 def getsign(negative: bool) -> float:
     return -1. if negative else 1.
+
+def floatToDual(arg: float | Dual) -> Dual:
+    return Dual(arg) if type(arg) == float else cast(Dual,arg)
+
+def toDual(arg: Expr | Variable | Dual | float) -> Expr | Variable | Dual:
+    if type(arg) == float:
+        return Dual(arg)
+    return cast(Union[Expr,Variable,Dual],arg)
+
+def toDuals(*args: Expr | Variable | Dual | float) -> List[Expr | Variable | Dual]:
+    return list(map(toDual,args))
 
 class Variable:
     def __init__(self,identif: str,negative: bool = False):
@@ -21,18 +33,17 @@ class Variable:
         newobj.negative = not self.negative
         return newobj
     
-    def __call__(self,**kwargs: float) -> Variable | float:
+    def __call__(self,**kwargs: Dual | float) -> Variable | Dual:
         for k,v in kwargs.items():
             if k == self.identif:
-                return getsign(self.negative)*v
+                return floatToDual(v).scale(getsign(self.negative))
         return self
     
     def __repr__(self) -> str:
         return ("-" if self.negative else "")+self.identif
 
-
 class Expr:
-    def __init__(self,name: str,func: FloatFunction,arguments: List[Expr | Variable | float]):
+    def __init__(self,name: str,func: Function,arguments: List[Expr | Variable | Dual]):
         self.name      = name
         self.func      = func
         self.arguments = arguments
@@ -48,21 +59,21 @@ class Expr:
         ret+= self.name
         ret+="({})".format(",".join(map(str,self.arguments)))
         return ret
-        
-    def __call__(self,**kwargs: float) -> Expr | float:
+    def __call__(self,**kwargs: Dual | float) -> Expr | Dual:
         all_evaled = True
-        newargs: List[Expr | Variable | float] = []
+        newargs: List[Expr | Variable | Dual] = []
         for arg in self.arguments:
-            if type(arg) == float:
-                newargs.append(arg)
+            aux = toDual(arg)
+            if type(aux) == Dual:
+                newargs.append(aux)
                 continue
-            newarg = cast(Union[Expr,Variable],arg).__call__(**kwargs) #make it explicit so its more obvious when reading...
+            newarg = cast(Union[Expr,Variable],aux).__call__(**kwargs) #make it explicit so its more obvious when reading...
             newargs.append(newarg)
-            all_evaled = all_evaled and (type(newarg) == float)
+            all_evaled = all_evaled and (type(newarg) == Dual)
                 
         if all_evaled:
-            casted_newargs = tuple(cast(List[float],newargs))
-            return getsign(self.negative)*self.func(*casted_newargs)
+            casted_newargs = tuple(cast(List[Dual],newargs))
+            return self.func(*casted_newargs).scale(getsign(self.negative))
         
         return Expr(self.name,self.func,newargs)
 
@@ -70,7 +81,7 @@ class Expr:
 class InfixExpr(Expr):            
     def __repr__(self) -> str:
         ret = "-" if self.negative else ""
-        tostr = lambda x: "("+str(x)+")" if isinstance(x,InfixExpr) else str(x)
+        tostr = lambda x: "("+str(x)+")" if (isinstance(x,InfixExpr) or isinstance(x,Dual)) else str(x)
         joined = self.name.join(map(tostr,self.arguments))
         ret+="{}{}{}".format("(" if self.negative else "",joined,")" if self.negative else "")
         #SPEED: do this in a single loop
@@ -78,45 +89,54 @@ class InfixExpr(Expr):
         ret = ret.replace("+-","-")
         ret = ret.replace("--","+")
         return ret
-    
-def Sin(arg: Expr | Variable | float) -> Expr:
-    def f(*args: float) -> float:
-        return math.sin(args[0])
-    return Expr("Sin",f,[arg])
+        
+def Sin(arg: Expr | Variable | Dual | float) -> Expr:
+    def f(*args: Dual) -> Dual:
+        x = Dual(args[0].real % (math.pi*2),args[0].dual % (math.pi*2))
+        x_squared = x*x
+        result    = x
+        accum_mul = x
+        sign = -1.
+        for i in range(3,24,2):
+            accum_mul = accum_mul*x_squared
+            result   += accum_mul.scale(sign/math.factorial(i))
+            sign     *= -1.
+        return result
+    return Expr("Sin",f,toDuals(arg))
 
-def Plus(*args: Expr | Variable | float) -> InfixExpr:
-    def f(*args: float):
-        ret = 0.
+def Plus(*args: Expr | Variable | Dual | float) -> InfixExpr:
+    def f(*args: Dual):
+        ret = Dual(0.)
         for a in args:
             ret += a
         return ret
-    return InfixExpr("+",f,list(args))
+    return InfixExpr("+",f,toDuals(*args))
 
-def Minus(*args: Expr | Variable | float) -> InfixExpr:
-    def f(*args: float):
-        ret = 0.
+def Minus(*args: Expr | Variable | Dual | float) -> InfixExpr:
+    def f(*args: Dual):
+        ret = Dual(0.)
         for a in args:
             ret -= a
         return ret
-    return InfixExpr("-",f,list(args))
+    return InfixExpr("-",f,toDuals(*args))
 
-def Multiply(*args: Expr | Variable | float) -> InfixExpr:
-    def f(*args: float):
-        ret = 1.
+def Multiply(*args: Expr | Variable | Dual | float) -> InfixExpr:
+    def f(*args: Dual):
+        ret = Dual(1.)
         for a in args:
             ret *= a
         return ret
-    return InfixExpr("*",f,list(args))
+    return InfixExpr("*",f,toDuals(*args))
 
-def Divide(*args: Expr | Variable | float) -> InfixExpr:
-    def f(*args: float):
+def Divide(*args: Expr | Variable | Dual | float) -> InfixExpr:
+    def f(*args: Dual):
         if len(args) == 0:
             raise Exception("Can't divide no arguments")
         ret = args[0]
         for a in args[1:]:
             ret /= a
         return ret
-    return InfixExpr("/",f,list(args))
+    return InfixExpr("/",f,toDuals(*args))
 
 def main() -> None:
     x = Variable("x")
@@ -135,7 +155,16 @@ def main() -> None:
     plus_test_vars = Plus(Variable("x"),Variable("y"),Variable("z"))
     print(plus_test_vars)
     print(-plus_test_vars)
-    print(plus_test_vars(x=0.,y=1.,z=2.))#Type hinting doesn't catch the string with **kwargs: float, for some reason
+    print(plus_test_vars(x=0.,y=1.,z=2.))
+    sin = Sin(Variable("x"))
+    print(sin)
+    print(sin(x=0.))
+    print(sin(x=math.pi*0.5))
+    print(sin(x=math.pi*1.0))
+    print(sin(x=math.pi*1.5))
+    print(sin(x=math.pi*2.0))
+    print(sin(x=math.pi*2.5))
+    print(sin(x=math.pi*3.0))
     
 
 if __name__=="__main__":

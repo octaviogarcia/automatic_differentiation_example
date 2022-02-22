@@ -6,6 +6,8 @@ import copy
 class Dual:
     real: float
     dual: float = 0.
+    def scale(self,f: float) -> Dual:
+        return Dual(self.real*f,self.dual*f)
     def eq(self,other: Dual) -> bool:
         return (self.real == other.dual) and (self.dual == other.dual)
     def abs(self) -> Dual:
@@ -36,7 +38,6 @@ class Dual:
         return ret
     def __repr__(self) -> str:
         return "{} + {}ε".format(self.real,self.dual)
-        
 
 def main() -> None:
     print(Dual(1.,1.)==Dual(1.,1.))
