@@ -139,32 +139,23 @@ def Divide(*args: Expr | Variable | Dual | float) -> InfixExpr:
     return InfixExpr("/",f,toDuals(*args))
 
 def main() -> None:
-    x = Variable("x")
-    print(x)
-    print((-x))
-    print(x(x=1.2))
-    print((-x)(x=1.2))
-    sin_constant = Sin(-1.2)
-    print(sin_constant)
-    print(-sin_constant)
-    plus_test = Plus(Sin(Variable("x")),-1.)
-    print(plus_test(x=math.pi))
-    print(plus_test)
-    print(Divide(1.,2.,3.))
-    print(Divide(1.,2.,3.)())
+    print(Sin(-1.2),"=",Sin(-1.2)())
+    print(Divide(1.,2.,3.),"=",Divide(1.,2.,3.)())
+    
     plus_test_vars = Plus(Variable("x"),Variable("y"),Variable("z"))
-    print(plus_test_vars)
-    print(-plus_test_vars)
-    print(plus_test_vars(x=0.,y=1.,z=2.))
-    sin = Sin(Variable("x"))
-    print(sin)
-    print(sin(x=0.))
-    print(sin(x=math.pi*0.5))
-    print(sin(x=math.pi*1.0))
-    print(sin(x=math.pi*1.5))
-    print(sin(x=math.pi*2.0))
-    print(sin(x=math.pi*2.5))
-    print(sin(x=math.pi*3.0))
+    values = {"x": 0.,"y": 1.,"z": 2.}
+    print(plus_test_vars,"(",values,")","=",plus_test_vars(**values))
+    
+    start   = 0.
+    end     = 4*math.pi
+    steps   = 100
+    formula = Sin(Variable("x"))
+    print("Testing",formula,"and its automatic derivative")
+    for i in range(0,steps+1,1):
+        x = (i/steps)*(end-start) + start
+        dual_x = Dual(x,1.)
+        dual_y = formula(x=dual_x)
+        print("x {:.2f} sin(x) {:.2f} y {:.2f} cos(x) {:.2f} y' {:.2f}".format(x,math.sin(x),dual_y.real,math.cos(x),dual_y.dual))
     
 
 if __name__=="__main__":
