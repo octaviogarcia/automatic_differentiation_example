@@ -15,13 +15,13 @@ def getsign(negative: bool) -> float:
 def floatToDual(arg: float | Dual) -> Dual:
     return Dual(arg) if type(arg) == float else cast(Dual,arg)
 
-def toDual(arg: Expr | Variable | Dual | float) -> Expr | Variable | Dual:
+def clearFloat(arg: Expr | Variable | Dual | float) -> Expr | Variable | Dual:
     if type(arg) == float:
         return Dual(arg)
     return cast(Union[Expr,Variable,Dual],arg)
 
-def toDuals(*args: Expr | Variable | Dual | float) -> List[Expr | Variable | Dual]:
-    return list(map(toDual,args))
+def clearFloats(*args: Expr | Variable | Dual | float) -> List[Expr | Variable | Dual]:
+    return list(map(clearFloat,args))
 
 class Variable:
     def __init__(self,identif: str,negative: bool = False):
@@ -63,7 +63,7 @@ class Expr:
         all_evaled = True
         newargs: List[Expr | Variable | Dual] = []
         for arg in self.arguments:
-            aux = toDual(arg)
+            aux = clearFloat(arg)
             if type(aux) == Dual:
                 newargs.append(aux)
                 continue
@@ -102,7 +102,7 @@ def Sin(arg: Expr | Variable | Dual | float) -> Expr:
             result   += accum_mul.scale(sign/math.factorial(i))
             sign     *= -1.
         return result
-    return Expr("Sin",f,toDuals(arg))
+    return Expr("Sin",f,clearFloats(arg))
 
 def Plus(*args: Expr | Variable | Dual | float) -> InfixExpr:
     def f(*args: Dual):
@@ -110,7 +110,7 @@ def Plus(*args: Expr | Variable | Dual | float) -> InfixExpr:
         for a in args:
             ret += a
         return ret
-    return InfixExpr("+",f,toDuals(*args))
+    return InfixExpr("+",f,clearFloats(*args))
 
 def Minus(*args: Expr | Variable | Dual | float) -> InfixExpr:
     def f(*args: Dual):
@@ -118,7 +118,7 @@ def Minus(*args: Expr | Variable | Dual | float) -> InfixExpr:
         for a in args:
             ret -= a
         return ret
-    return InfixExpr("-",f,toDuals(*args))
+    return InfixExpr("-",f,clearFloats(*args))
 
 def Multiply(*args: Expr | Variable | Dual | float) -> InfixExpr:
     def f(*args: Dual):
@@ -126,7 +126,7 @@ def Multiply(*args: Expr | Variable | Dual | float) -> InfixExpr:
         for a in args:
             ret *= a
         return ret
-    return InfixExpr("*",f,toDuals(*args))
+    return InfixExpr("*",f,clearFloats(*args))
 
 def Divide(*args: Expr | Variable | Dual | float) -> InfixExpr:
     def f(*args: Dual):
@@ -136,7 +136,7 @@ def Divide(*args: Expr | Variable | Dual | float) -> InfixExpr:
         for a in args[1:]:
             ret /= a
         return ret
-    return InfixExpr("/",f,toDuals(*args))
+    return InfixExpr("/",f,clearFloats(*args))
 
 def main() -> None:
     print(Sin(-1.2),"=",Sin(-1.2)())
@@ -151,11 +151,16 @@ def main() -> None:
     steps   = 100
     formula = Sin(Variable("x"))
     print("Testing",formula,"and its automatic derivative")
+    format_width = 7
+    rjust  = lambda s: s.rjust(format_width,' ')
+    print(*(rjust(s) for s in ["x","sin(x)","y","cos(x)","y'"]),sep='|')
+    print(*("-"*format_width for i in range(5)),sep='|')
+
     for i in range(0,steps+1,1):
         x = (i/steps)*(end-start) + start
         dual_x = Dual(x,1.)
-        dual_y = formula(x=dual_x)
-        print("x {:.2f} sin(x) {:.2f} y {:.2f} cos(x) {:.2f} y' {:.2f}".format(x,math.sin(x),dual_y.real,math.cos(x),dual_y.dual))
+        dual_y = cast(Dual,formula(x=dual_x))
+        print(*(rjust("{:.2f}".format(f)) for f in [x,math.sin(x),dual_y.real,math.cos(x),dual_y.dual]),sep='|')
     
 
 if __name__=="__main__":
