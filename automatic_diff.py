@@ -92,7 +92,7 @@ class InfixExpr(Expr):
         
 def Sin(arg: Expr | Variable | Dual | float) -> Expr:
     def f(*args: Dual) -> Dual:
-        x = Dual(args[0].real % (math.pi*2),args[0].dual % (math.pi*2))
+        x = Dual(args[0].real % (math.pi*2),args[0].eps % (math.pi*2))
         x_squared = x*x
         result    = x
         accum_mul = x
@@ -160,7 +160,7 @@ def main() -> None:
         x = (i/steps)*(end-start) + start
         dual_x = Dual(x,1.)
         dual_y = cast(Dual,formula(x=dual_x))
-        print(*(rjust("{:.2f}".format(f)) for f in [x,math.sin(x),dual_y.real,math.cos(x),dual_y.dual]),sep='|')
+        print(*(rjust("{:.2f}".format(f)) for f in [x,math.sin(x),dual_y.real,math.cos(x),dual_y.eps]),sep='|')
     
 
 if __name__=="__main__":

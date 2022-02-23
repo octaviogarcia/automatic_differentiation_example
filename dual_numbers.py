@@ -5,39 +5,39 @@ import copy
 @dataclass
 class Dual:
     real: float
-    dual: float = 0.
+    eps: float = 0.
     def scale(self,f: float) -> Dual:
-        return Dual(self.real*f,self.dual*f)
+        return Dual(self.real*f,self.eps*f)
     def eq(self,other: Dual) -> bool:
-        return (self.real == other.dual) and (self.dual == other.dual)
+        return (self.real == other.eps) and (self.eps == other.eps)
     def abs(self) -> Dual:
-        return Dual(abs(self.real),abs(self.dual))
+        return Dual(abs(self.real),abs(self.eps))
     def __abs__(self) -> Dual:
         return self.abs()
     def __neg__(self) -> Dual:
-        return Dual(-self.real,-self.dual)
+        return Dual(-self.real,-self.eps)
     def __add__(self,other: Dual) -> Dual:
-        return Dual(self.real+other.real,self.dual+other.dual)
+        return Dual(self.real+other.real,self.eps+other.eps)
     def __sub__(self,other: Dual) -> Dual:
         return self+(-other)
     def __mul__(self,other: Dual) -> Dual:
-        return Dual(self.real*other.real,self.real*other.dual+self.dual*other.real)
+        return Dual(self.real*other.real,self.real*other.eps+self.eps*other.real)
     def __truediv__(self,other: Dual) -> Dual:
         if other.real != 0.:
             return Dual(
                 self.real/other.real,
-                (self.dual*other.real-self.real*other.dual)/(other.real*other.real)
+                (self.eps*other.real-self.real*other.eps)/(other.real*other.real)
             )
         if self.real != 0.:
             raise ArithmeticError("Division not defined for divisor {}".format(other))
-        raise ArithmeticError("Infinite solutions of the form {} + yε".format(self.dual/other.dual))
+        raise ArithmeticError("Infinite solutions of the form {} + yε".format(self.eps/other.eps))
     def __pow__(self,p: int) -> Dual:
         ret = Dual(1.,0) #multiply identity 
         for i in range(p):
             ret *= self
         return ret
     def __repr__(self) -> str:
-        return "{} + {}ε".format(self.real,self.dual)
+        return "{} + {}ε".format(self.real,self.eps)
 
 def main() -> None:
     print(Dual(1.,1.)==Dual(1.,1.))
